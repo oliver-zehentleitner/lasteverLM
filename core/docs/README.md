@@ -136,14 +136,23 @@ service, which runs on an async pool, uses `abalance_cents`,
 `ahas_credit` and `arecord_usage`; `BALANCE_SQL` and `USAGE_SQL` are exported for a report
 query that needs them inline.
 
-Speech synthesis is priced per input character, not per token. A `tts`
-row carries the character count in `tokens_in` and 0 in `tokens_out`,
-and `MODEL_PRICES` lists `TTS_MODEL` with `in` in cents per million
-characters (`out` 0):
+Speech synthesis and transcription are priced per second of audio, not
+per token, as the platform bills them. A `tts` or `stt` row carries the
+seconds in `tokens_in` and 0 in `tokens_out`, and `MODEL_PRICES` lists
+`TTS_MODEL` and `STT_MODEL` with `in` in cents per million seconds
+(`out` 0). Both providers return the usage; a billed failure carries it
+on the `ProviderError`:
 
 ```python
-audio = tts.synthesize(segment)
-record_usage(conn, user_id, notebook_id, "rag", "tts", tts.model, len(segment), 0, prices=prices)
+try:
+    speech = tts.synthesize(segment)  # SpeechResult(audio, usage)
+except ProviderError as exc:
+    if exc.usage is not None:
+        record_usage(conn, user_id, notebook_id, "rag", exc.usage.kind, exc.usage.model,
+                     exc.usage.tokens_in, exc.usage.tokens_out, prices=prices)
+    raise
+record_usage(conn, user_id, notebook_id, "rag", "tts", speech.usage.model,
+             speech.usage.tokens_in, 0, prices=prices)
 ```
 
 ## Rate limiting

@@ -21,10 +21,15 @@ from lasteverlm_core import (
     OpenAICompatibleSpeechToText,
     OpenAICompatibleTextToSpeech,
     ProviderError,
+    SpeechResult,
     Usage,
     make_client,
     thinking_body,
 )
+
+# MPEG-1 Layer III, 128 kbit/s, 44.1 kHz: 417 bytes and 1152 samples a frame,
+# so 200 frames are 5.22 s.
+MP3 = b"\xff\xfb\x90\x00" + bytes(413)
 
 
 class FakeServer:
@@ -230,12 +235,20 @@ def test_llm_http_error_becomes_provider_error() -> None:
         OpenAICompatibleEmbedder(client, "embed", 4).embed(["a"])
 
 
-def speech_client(requests: list[dict[str, Any]], status: int = 200) -> OpenAI:
+def speech_client(
+    requests: list[dict[str, Any]],
+    status: int = 200,
+    content: bytes = b"\xff\xf3mp3",
+    seconds: str | None = "2",
+) -> OpenAI:
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(json.loads(request.content))
         if status != 200:
             return httpx.Response(status, json={"error": {"message": "Unknown voice"}})
-        return httpx.Response(200, content=b"\xff\xf3mp3", headers={"content-type": "audio/mpeg"})
+        headers = {"content-type": "audio/mpeg"}
+        if seconds is not None:
+            headers["x-usage-seconds"] = seconds
+        return httpx.Response(200, content=content, headers=headers)
 
     return OpenAI(
         base_url="http://fake/v1",
@@ -248,7 +261,7 @@ def speech_client(requests: list[dict[str, Any]], status: int = 200) -> OpenAI:
 def test_tts_sends_the_platform_default_voice() -> None:
     requests: list[dict[str, Any]] = []
     tts = OpenAICompatibleTextToSpeech(speech_client(requests), "tts")
-    assert tts.synthesize("Hallo.") == b"\xff\xf3mp3"
+    assert tts.synthesize("Hallo.") == SpeechResult(b"\xff\xf3mp3", Usage("tts", "tts", 2, 0))
     assert DEFAULT_TTS_VOICE == "ryan" and tts.voice == "ryan"
     assert requests == [{"model": "tts", "voice": "ryan", "input": "Hallo."}]
 
@@ -266,18 +279,32 @@ def test_tts_voice_and_speed_per_call() -> None:
     ]
 
 
-def test_tts_empty_audio_is_an_error() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, content=b"", headers={"content-type": "audio/mpeg"})
+def test_tts_bills_the_reported_seconds_rounded_up() -> None:
+    tts = OpenAICompatibleTextToSpeech(speech_client([], seconds="6.2"), "tts")
+    assert tts.synthesize("Hallo.").usage == Usage("tts", "tts", 7, 0)
 
-    client = OpenAI(
-        base_url="http://fake/v1",
-        api_key="test",
-        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
-        max_retries=0,
-    )
-    with pytest.raises(ProviderError, match="returned no audio"):
-        OpenAICompatibleTextToSpeech(client, "tts").synthesize("Hallo.")
+
+@pytest.mark.parametrize("seconds", [None, "", "seven", "-1", "nan"])
+def test_tts_without_reported_seconds_fails_with_the_measured_ones(seconds: str | None) -> None:
+    # 100 MPEG-1 frames at 44.1 kHz: 2.61 s, billed as 3
+    tts = OpenAICompatibleTextToSpeech(speech_client([], content=MP3 * 100, seconds=seconds), "tts")
+    with pytest.raises(ProviderError, match="reported no x-usage-seconds") as caught:
+        tts.synthesize("Hallo.")
+    assert caught.value.usage == Usage("tts", "tts", 3, 0)
+
+
+def test_tts_unmeasurable_audio_without_seconds_fails_without_usage() -> None:
+    tts = OpenAICompatibleTextToSpeech(speech_client([], content=b"noise", seconds=None), "tts")
+    with pytest.raises(ProviderError, match="reported no x-usage-seconds") as caught:
+        tts.synthesize("Hallo.")
+    assert caught.value.usage is None
+
+
+def test_tts_empty_audio_is_an_error_with_its_usage() -> None:
+    tts = OpenAICompatibleTextToSpeech(speech_client([], content=b"", seconds="1"), "tts")
+    with pytest.raises(ProviderError, match="returned no audio") as caught:
+        tts.synthesize("Hallo.")
+    assert caught.value.usage == Usage("tts", "tts", 1, 0)
 
 
 def test_tts_http_error_becomes_provider_error() -> None:
@@ -285,11 +312,6 @@ def test_tts_http_error_becomes_provider_error() -> None:
     with pytest.raises(ProviderError, match="speech request failed") as caught:
         tts.synthesize("Hallo.")
     assert caught.value.permanent is True  # an unknown voice stays unknown
-
-
-# MPEG-1 Layer III, 128 kbit/s, 44.1 kHz: 417 bytes and 1152 samples a frame,
-# so 200 frames are 5.22 s.
-MP3 = b"\xff\xfb\x90\x00" + bytes(413)
 
 
 def transcription_client(

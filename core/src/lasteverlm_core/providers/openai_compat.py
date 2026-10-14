@@ -19,9 +19,16 @@ from typing import Any
 
 from openai import APIError, APIStatusError, OpenAI
 
-from ..audio import billed_seconds, probe_audio
+from ..audio import AudioError, billed_seconds, measure_audio, probe_audio
 from ..settings import InferenceSettings
-from .base import CompletionResult, EmbeddingResult, ProviderError, TranscriptionResult, Usage
+from .base import (
+    CompletionResult,
+    EmbeddingResult,
+    ProviderError,
+    SpeechResult,
+    TranscriptionResult,
+    Usage,
+)
 
 DEFAULT_MAX_TOKENS = 1024
 
@@ -196,15 +203,20 @@ DEFAULT_TTS_VOICE = "ryan"
 
 
 class OpenAICompatibleTextToSpeech:
-    """Speech synthesis over `/audio/speech`; returns the MP3 bytes.
+    """Speech synthesis over `/audio/speech`; returns the MP3 bytes and their usage.
 
     The platform's voices are not the OpenAI names (`alloy` is rejected with
     a 400); it offers vivian, serena, uncle_fu, dylan, eric, ryan, aiden,
     ono_anna and sohee. `synthesize` takes a voice per call (the
     constructor's otherwise) and a `speed`, sent only when given; the
     platform accepts 0.25 to 4 and answers anything else with a 400.
-    Usage is priced per input character, which the caller records as
-    `tokens_in=len(text)`, `tokens_out=0`, kind `tts`.
+
+    The platform bills seconds of generated speech and reports them only in
+    the `x-usage-seconds` response header (whole seconds, rounded up; no
+    usage body). That number is the usage, kind `tts`, in `tokens_in`. A
+    response without a readable header is a `ProviderError` carrying the
+    duration measured from the MP3, so the caller still records the call;
+    empty audio is one too, with the reported usage.
     """
 
     def __init__(self, client: OpenAI, model: str, voice: str = DEFAULT_TTS_VOICE) -> None:
@@ -222,17 +234,41 @@ class OpenAICompatibleTextToSpeech:
 
     def synthesize(
         self, text: str, *, voice: str | None = None, speed: float | None = None
-    ) -> bytes:
+    ) -> SpeechResult:
         extra: dict[str, Any] = {} if speed is None else {"speed": speed}
         try:
-            response = self._client.audio.speech.create(
+            response = self._client.audio.speech.with_raw_response.create(
                 model=self._model, voice=voice or self._voice, input=text, **extra
             )
         except APIError as exc:
             raise _request_failed("speech", exc) from exc
-        if not response.content:
-            raise ProviderError(f"speech model {self._model} returned no audio")
-        return response.content
+        audio = response.content
+        reported = _whole_seconds(response.headers.get("x-usage-seconds"))
+        if reported is None:
+            raise ProviderError(
+                f"speech model {self._model} reported no x-usage-seconds",
+                self._measured(audio),
+            )
+        usage = Usage("tts", self._model, reported, 0)
+        if not audio:
+            raise ProviderError(f"speech model {self._model} returned no audio", usage)
+        return SpeechResult(audio, usage)
+
+    def _measured(self, audio: bytes) -> Usage | None:
+        """The usage measured from the MP3, or `None` when it cannot be read."""
+        try:
+            return Usage("tts", self._model, billed_seconds(measure_audio(audio).seconds), 0)
+        except AudioError:
+            return None
+
+
+def _whole_seconds(header: str | None) -> int | None:
+    """A non-negative usage header as whole seconds rounded up, else `None`."""
+    try:
+        value = float(header) if header is not None else math.nan
+    except ValueError:
+        return None
+    return math.ceil(value) if math.isfinite(value) and value >= 0 else None
 
 
 class OpenAICompatibleSpeechToText:

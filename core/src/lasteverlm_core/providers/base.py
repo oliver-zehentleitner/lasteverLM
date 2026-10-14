@@ -66,6 +66,15 @@ class CompletionResult:
 
 
 @dataclass(frozen=True)
+class SpeechResult:
+    """The MP3 bytes and the usage to record (kind `tts`, seconds of
+    generated speech in `tokens_in`)."""
+
+    audio: bytes
+    usage: Usage
+
+
+@dataclass(frozen=True)
 class TranscriptionResult:
     """The transcript, the usage to record (kind `stt`, seconds in
     `tokens_in`) and the duration core measured from the file."""
@@ -104,14 +113,14 @@ class LLM(Protocol):
 
 
 class TextToSpeech(Protocol):
-    """Text in, MP3 bytes out; usage is the caller's to record (per character)."""
+    """Text in, MP3 bytes and their usage (per second of speech) out."""
 
     @property
     def model(self) -> str: ...
 
     def synthesize(
         self, text: str, *, voice: str | None = None, speed: float | None = None
-    ) -> bytes: ...
+    ) -> SpeechResult: ...
 
 
 class SpeechToText(Protocol):

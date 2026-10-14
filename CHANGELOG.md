@@ -8,7 +8,7 @@ reasoning behind changes is in [`context/`](context/index.md).
 
 ### Changed
 
-- `docs/architecture.md`: usage kind `stt` (seconds of audio), source kind `audio`, `STT_MODEL`.
+- `docs/architecture.md`: usage kind `stt` (seconds of audio), source kind `audio`, `STT_MODEL`; `tts` is priced per second of generated speech, not per character.
 
 ## [0.10.0] - 2026-10-14
 

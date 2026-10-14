@@ -9,6 +9,10 @@ preserves why it changed, in `context/`.
 
 ## [Unreleased]
 
+### Fixed
+
+- Text to speech is billed per second of generated speech, as the platform charges it, instead of per input character (about 15 times too much). `synthesize` returns `SpeechResult(audio, usage)`, the usage (kind `tts`, seconds in `tokens_in`) read from the `x-usage-seconds` response header and rounded up. A response without a readable header is a `ProviderError` carrying the duration measured from the MP3 (`measure_audio`); empty audio is one carrying the reported usage. `MODEL_PRICES` gives `in` for a `tts` model in cents per million seconds. Breaking: callers take `.audio` and record `.usage`.
+
 ### Added
 
 - Speech to text for audio sources: `SpeechToText` and `OpenAICompatibleSpeechToText(client, model).transcribe(audio, filename)` returning `TranscriptionResult` (`text`, `usage`, `seconds`), multipart against `/audio/transcriptions` with `response_format=json`. Usage kind `stt` (`UsageKind`, migration `0004_core_usage_stt.sql`) is billed in seconds of audio, rounded up per call, from the duration the platform reports; a response without it is a `ProviderError` carrying the measured seconds, an empty transcript one carrying the reported usage. `MODEL_PRICES` prices it with `in` in cents per million seconds. `InferenceSettings.stt_model` (`STT_MODEL`, default `whisper-large-v3-turbo`, `DEFAULT_STT_MODEL`). `SourceKind` gains `audio`.

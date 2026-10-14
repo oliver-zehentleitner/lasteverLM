@@ -12,6 +12,7 @@ from lasteverlm_core import (
     MAX_AUDIO_SECONDS,
     AudioError,
     billed_seconds,
+    measure_audio,
     probe_audio,
 )
 
@@ -91,6 +92,13 @@ def test_the_platform_limits_are_checked_before_any_call() -> None:
     assert len(SLOW_FRAME) * frames < MAX_AUDIO_BYTES
     with pytest.raises(AudioError, match="4 hours"):
         probe_audio(SLOW_FRAME * frames)
+
+
+def test_measure_audio_skips_the_transcription_limits() -> None:
+    long_speech = SLOW_FRAME * (int(MAX_AUDIO_SECONDS / 0.072) + 2)
+    assert measure_audio(long_speech).seconds > MAX_AUDIO_SECONDS
+    with pytest.raises(AudioError, match="empty"):
+        measure_audio(b"")
 
 
 def test_billed_seconds_round_up_to_at_least_one() -> None:

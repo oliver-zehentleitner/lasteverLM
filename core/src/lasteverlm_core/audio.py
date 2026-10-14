@@ -59,6 +59,20 @@ def probe_audio(data: bytes) -> AudioInfo:
             f"the audio file is {len(data)} bytes; at most {MAX_AUDIO_BYTES} (25 MiB) "
             "can be transcribed"
         )
+    info = measure_audio(data)
+    if info.seconds > MAX_AUDIO_SECONDS:
+        raise AudioError(
+            f"the audio is {math.ceil(info.seconds)} seconds long; at most {MAX_AUDIO_SECONDS} "
+            "(4 hours) can be transcribed"
+        )
+    return info
+
+
+def measure_audio(data: bytes) -> AudioInfo:
+    """Format and duration of WAV or MP3 bytes, without the transcription
+    limits (it also measures synthesized speech); `AudioError` otherwise."""
+    if not data:
+        raise AudioError("the audio file is empty")
     if data[:4] == b"RIFF" and data[8:12] == b"WAVE":
         fmt: AudioFormat = "wav"
         seconds = _wav_seconds(data)
@@ -70,11 +84,6 @@ def probe_audio(data: bytes) -> AudioInfo:
         seconds = _mp3_seconds(data)
     if seconds <= 0:
         raise AudioError("the audio file contains no audio")
-    if seconds > MAX_AUDIO_SECONDS:
-        raise AudioError(
-            f"the audio is {math.ceil(seconds)} seconds long; at most {MAX_AUDIO_SECONDS} "
-            "(4 hours) can be transcribed"
-        )
     return AudioInfo(fmt, MIME_TYPES[fmt], seconds)
 
 
