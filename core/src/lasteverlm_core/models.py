@@ -143,7 +143,9 @@ class Output(_Row):
     `origin_title` keeps the notebook's title from when the output was
     made (`""` where none was recorded). `deleted_at` and `purge_at` are
     set while the output is in the trash, `None` otherwise. The owner is
-    never part of the model: it is always the caller.
+    never part of the model: it is always the caller. `provenance` is the
+    generation log rag stores with the output (`outputs.provenance`); rag
+    owns and documents its shape, `None` for outputs made before it.
     """
 
     id: UUID
@@ -160,16 +162,19 @@ class Output(_Row):
     created_at: datetime
     deleted_at: datetime | None = None
     purge_at: datetime | None = None
+    provenance: dict[str, Any] | None = None
 
 
 class SharedOutput(BaseModel):
-    """What `GET /api/rag/shared/{token}` returns: the document without ids."""
+    """What `GET /api/rag/shared/{token}` returns: the document without ids.
+    `provenance` is the output's, with the ids stripped by rag."""
 
     kind: OutputKind
     title: str
     content: dict[str, Any] | None = None
     options: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
+    provenance: dict[str, Any] | None = None
 
 
 UNKNOWN_BUILD = "unknown"

@@ -243,7 +243,7 @@ Answer:   {"message_id", "answer", "citations": [Citation]}
 Citation: {"n", "source_id", "source_name", "source_kind", "chunk_id", "page", "quote" (verbatim chunk text), "similarity", "chunk_index", "chunk_count"}
 Conversation: {"id", "notebook_id", "title", "created_at"}
 Message:  {"id", "conversation_id", "role", "content", "citations", "created_at"}
-Output:   {"id", "notebook_id", "origin_title", "kind", "title", "content", "status", "error", "share_token", "source_id", "options", "created_at", "deleted_at", "purge_at"}
+Output:   {"id", "notebook_id", "origin_title", "kind", "title", "content", "status", "error", "share_token", "source_id", "options", "created_at", "deleted_at", "purge_at", "provenance"}
 ChunkView: {"chunk_id", "source_id", "source_name", "source_kind", "page", "text", "chunk_index", "chunk_count"}
 RagStats: {"notebooks": {"total"}, "messages": {"total", "last_24h"}, "outputs": {"by_kind": {<kind>: n}, "by_status": {<status>: n}},
            "jobs": {"pending", "running", "failed"}, "shared": {"outputs"}}

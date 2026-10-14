@@ -9,6 +9,10 @@ preserves why it changed, in `context/`.
 
 ## [Unreleased]
 
+### Added
+
+- `Output.provenance` and `SharedOutput.provenance: dict[str, Any] | None = None`: the generation log rag stores with an output (`outputs.provenance`). rag owns and documents its shape and strips the ids before a shared output is returned; `None` for outputs made before it.
+
 ### Changed
 
 - `Output` for outputs in the user's library: `notebook_id` is `UUID | None` (`None` once the origin notebook is deleted; the output survives it), new `origin_title: str = ""` (the origin notebook's title, kept), and `deleted_at` / `purge_at: datetime | None = None` (set while the output is in the trash). The owner is not in the model; it is always the caller. `SharedOutput` is unchanged.

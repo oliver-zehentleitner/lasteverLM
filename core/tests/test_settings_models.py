@@ -89,7 +89,33 @@ def test_an_output_outlives_its_notebook_and_can_sit_in_the_trash() -> None:
     wire = orphan.model_dump(mode="json")
     assert wire["notebook_id"] is None and wire["deleted_at"] == "2026-10-14T10:00:00Z"
     assert "owner" not in wire and "user_id" not in wire  # always the caller
-    assert set(SharedOutput.model_fields) == {"kind", "title", "content", "options", "created_at"}
+    assert set(SharedOutput.model_fields) == {
+        "kind",
+        "title",
+        "content",
+        "options",
+        "created_at",
+        "provenance",
+    }
+
+
+def test_provenance_is_optional_and_passed_through() -> None:
+    row = {
+        "id": str(uuid4()),
+        "notebook_id": str(uuid4()),
+        "kind": "report",
+        "title": "t",
+        "status": "ready",
+        "created_at": "2026-10-14T00:00:00Z",
+    }
+    assert Output.model_validate(row).provenance is None
+    log = {"units": [{"text": "a", "chunks": ["c1"]}], "checked": True}
+    assert Output.model_validate({**row, "provenance": log}).provenance == log
+    shared = SharedOutput(
+        kind="report", title="t", created_at=datetime(2026, 10, 14, tzinfo=UTC), provenance=log
+    )
+    assert shared.model_dump(mode="json")["provenance"] == log
+    assert SharedOutput(kind="report", title="t", created_at=shared.created_at).provenance is None
 
 
 def test_health_reports_the_build_from_the_env() -> None:
