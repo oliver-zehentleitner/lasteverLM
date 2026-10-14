@@ -9,8 +9,10 @@ only casts at its own boundary.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from types import MappingProxyType
 from typing import Any, Literal, get_args
 from uuid import UUID
 
@@ -61,6 +63,43 @@ USAGE_ACTIONS: frozenset[str] = frozenset(
     }
 )
 UNKNOWN_ACTION = "unknown"
+# How a price list counts an action: once per action_id ("action"), or per
+# minute of the audio seconds its tts or stt rows hold in tokens_in
+# ("seconds"). `unit` is a stable key the frontend translates.
+UnitMeasure = Literal["action", "seconds"]
+
+
+@dataclass(frozen=True)
+class ActionUnit:
+    """The unit a user is quoted for one action."""
+
+    unit: str
+    measure: UnitMeasure
+
+
+_SECONDS_ACTIONS = frozenset({"output:audio", "source:audio"})
+_UNIT_KEYS = {
+    "chat_answer": "question",
+    "chart_propose": "chart_proposal",
+    "summary": "summary",
+    "judge": "check",
+    "decision": "decision",
+    "voice_sample": "voice_sample",
+    "demo_seed": "demo_seed",
+}
+USAGE_ACTION_UNITS: Mapping[str, ActionUnit] = MappingProxyType(
+    {
+        action: (
+            ActionUnit("audio_minute", "seconds")
+            if action in _SECONDS_ACTIONS
+            else ActionUnit(
+                _UNIT_KEYS.get(action) or ("output" if action.startswith("output:") else "source"),
+                "action",
+            )
+        )
+        for action in sorted(USAGE_ACTIONS)
+    }
+)
 
 
 def is_usage_action(action: str) -> bool:

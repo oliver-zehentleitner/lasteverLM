@@ -9,6 +9,11 @@ preserves why it changed, in `context/`.
 
 ## [Unreleased]
 
+### Added
+
+- `USAGE_ACTION_UNITS`, `ActionUnit(unit, measure)` and `UnitMeasure` (`action`: once per `action_id`; `seconds`: minutes of the action's `tts`/`stt` seconds) give a price list one unit per action: `question`, `output`, `source`, `audio_minute`, `check`, …; PDFs per source.
+- `charge_for(rules, action, cost_eur_cents)`: an action's euro cost under the current rules, margin plus the fixed fee once; `estimate_charge` uses it.
+
 ## [0.18.0] - 2026-10-14
 
 ### Changed

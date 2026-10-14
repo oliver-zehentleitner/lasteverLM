@@ -194,7 +194,19 @@ def estimate_charge(
     if not is_usage_action(action):
         raise ValueError(f"unknown action {action!r}; known: {', '.join(sorted(USAGE_ACTIONS))}")
     cost = rules.cost_eur_cents(cost_cents(prices, model, tokens_in, tokens_out))
-    return rules.charge_cents(action, cost) + rules.fixed_cents(action)
+    return charge_for(rules, action, cost)
+
+
+def charge_for(rules: PricingRules, action: str, cost_eur_cents: Decimal) -> Decimal:
+    """What one whole action costing `cost_eur_cents` charges under `rules`:
+    the margin on the cost plus the action's fixed fee, once.
+
+    For a price list: the observed euro cost of past actions (the sum of
+    an action_id's `cost_cents`) through the current rules, so a changed
+    margin shows at once instead of when old charges age out."""
+    if not is_usage_action(action):
+        raise ValueError(f"unknown action {action!r}; known: {', '.join(sorted(USAGE_ACTIONS))}")
+    return rules.charge_cents(action, cost_eur_cents) + rules.fixed_cents(action)
 
 
 class PricingRulesCache:

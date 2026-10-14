@@ -15,6 +15,7 @@ from lasteverlm_core import (
     ExchangeRateMissingError,
     PricingRules,
     PricingRulesCache,
+    charge_for,
     estimate_charge,
 )
 
@@ -100,6 +101,16 @@ def test_estimate_includes_the_fee_once(prices: Any) -> None:
         estimate_charge(prices, DEFAULT_PRICING_RULES, "chat_answer", "llm", 1)
     with pytest.raises(ValueError, match="unknown action"):
         estimate_charge(prices, rules, "unknown", "llm", 1)
+
+
+def test_charge_for_puts_an_observed_cost_through_the_current_rules() -> None:
+    rules = PricingRules.parse(RULES)
+    assert charge_for(rules, "chat_answer", Decimal("0.5")) == Decimal("0.6")  # 20 %
+    # a whole audio output: margin 0, the 5-cent fee once, not per segment
+    assert charge_for(rules, "output:audio", Decimal(24)) == 29
+    assert charge_for(PricingRules(), "judge", Decimal("0.1")) == Decimal("0.1")  # no rate needed
+    with pytest.raises(ValueError, match="unknown action"):
+        charge_for(rules, "unknown", Decimal(1))
 
 
 class Clock:

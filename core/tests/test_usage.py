@@ -11,6 +11,7 @@ from lasteverlm_core import (
     BALANCE_SQL,
     FEE_SQL,
     HAS_CREDIT_SQL,
+    USAGE_ACTION_UNITS,
     USAGE_ACTIONS,
     USAGE_SQL,
     ExchangeRateMissingError,
@@ -63,6 +64,17 @@ def test_actions_cover_every_output_and_uploaded_source_kind() -> None:
     )
     assert "source:generated" not in USAGE_ACTIONS
     assert not is_usage_action("unknown")
+
+
+def test_every_action_has_a_unit() -> None:
+    assert set(USAGE_ACTION_UNITS) == USAGE_ACTIONS
+    seconds = {a for a, u in USAGE_ACTION_UNITS.items() if u.measure == "seconds"}
+    assert seconds == {"output:audio", "source:audio"}
+    assert {USAGE_ACTION_UNITS[a].unit for a in seconds} == {"audio_minute"}
+    assert USAGE_ACTION_UNITS["chat_answer"].unit == "question"
+    assert USAGE_ACTION_UNITS["output:report"].unit == "output"
+    assert USAGE_ACTION_UNITS["source:pdf"].unit == "source"  # per source, not per page
+    assert USAGE_ACTION_UNITS["judge"].unit == "check"
 
 
 def test_record_usage_prices_charges_and_inserts(prices: Any) -> None:
