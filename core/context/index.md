@@ -27,7 +27,7 @@ repository root's `context/`.
 - [auth.md](auth.md) — one resolver for session JWT and demo token, why both schemes may be active at once and why there is no audience claim; why a secret under 32 bytes is refused; why read-only admin access is its own dependency
 
 ## B
-- [billing.md](billing.md) — why cost and charge are fixed at booking and a fixed fee is booked once per action; why migration 0006 is an expand step with a trigger; why costs stay US cents, charges are euro cents and the rate has no default
+- [billing.md](billing.md) — why cost and charge are fixed at booking and a fixed fee is booked once per action; why migration 0006 is an expand step with a trigger; why costs stay US cents, charges are euro cents and the rate has no default; why a price list quotes observed costs through the current rules, one unit per action
 
 ## C
 

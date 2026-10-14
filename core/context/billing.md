@@ -124,3 +124,43 @@ avoids a rounded inverse.
 
 **Rejected alternative:** seed the row in core's migration. Rejected
 because of the table ownership and migration order above.
+
+## A price list quotes observed costs through the current rules, one unit per action
+
+**Id:** c6663f0d-f76d-42a1-9c1d-a72916980b57
+**Type:** decision
+**Status:** active
+**Evidence:** confirmed
+**Source:** the maintainer's go for a public price list, design agreed between the account service and core and approved by the coordinating agent, 2026-10-14
+**Revisit when:** a PDF should be priced per page, or an action needs a unit other than one action or a minute of audio
+
+Every action has a unit in `USAGE_ACTION_UNITS`, next to
+`USAGE_ACTIONS`. A test checks that both lists match. A unit is either
+one action, counted once per `action_id` (`question`, `output`, `source`,
+`check`, ...), or a minute of audio, counted as the `tts`/`stt` seconds in
+`tokens_in` divided by 60. The unit is a stable key that the frontend
+translates. The price is the observed euro cost of past actions put
+through the current rules with `charge_for`, which applies the margin and
+adds the fee once. A PDF is quoted per source. The typical range shows
+how widely sources differ.
+
+**Reason:** the unit is part of what an action is, so it lives in the
+same place as the list of actions. A new action without a unit then
+fails the test instead of a price list silently leaving it out.
+Observed costs are what actions really took, and the current rules make
+a changed margin visible at once.
+
+**Rejected alternative:** price from the observed charges. Rejected:
+they carry the rules in force when each row was booked, so after a
+margin change the list would lag for as long as old rows dominate.
+
+**Rejected alternative:** price from `MODEL_PRICES` and expected token
+counts in the account service. Rejected: that would be a second pricing
+path beside the booking, with guessed token counts.
+
+**Rejected alternative:** a per-token unit ("tokens", marked as an
+estimate). Rejected: it is not a price a user can act on.
+
+**Rejected alternative, for now:** PDFs per page. The page count is
+not in the usage rows. It would need a unit count per booking, a schema
+change left for after the finance work.
