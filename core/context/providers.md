@@ -189,3 +189,41 @@ are the cases retries exist for, so they stay retryable.
 already catches `ProviderError`, and a subclass that some caller forgot
 would be retried or, worse, escape the worker. A flag needs nothing from
 callers that ignore it.
+
+## Speech synthesis is billed per second of generated speech, from the response header
+
+**Id:** b57ab97c-0eee-43b3-a7ee-06226e2d9714
+**Type:** decision
+**Status:** active
+**Evidence:** confirmed
+**Source:** rag's measurement of `/audio/speech` and the platform's model catalog ("completion", unit "second"), relayed by the coordinator, 2026-10-14; a live probe the same day (6 characters: `x-usage-seconds: 1`, 0.89 s of MP3; 97 characters: 7, 6.79 s)
+**Revisit when:** the platform reports speech usage in a response body, or prices it per character or per token
+
+A `tts` usage row holds the seconds of generated speech in `tokens_in`,
+read from the `x-usage-seconds` response header and rounded up, and
+`MODEL_PRICES` gives `in` in cents per million seconds, the same unit as
+`stt` (the entry above). `synthesize` returns the audio and that usage
+together (`SpeechResult`). A response without a readable header is a
+`ProviderError` carrying the duration measured from the MP3, so the call
+fails loud and is still recorded. This replaces the per-character unit
+that the family's audio-output decision set
+(`context/architecture.md`, "Audio files are served through presigned
+URLs").
+
+**Reason:** the platform bills speech by its length, not its input. At
+the configured price, counting characters charged users about fifteen
+times what the platform charged. The header is the only place the
+platform states the billed seconds (there is no usage body), and like
+the transcription duration it is the number on the invoice. Returning
+the usage from `synthesize` puts the unit in core, next to the call,
+instead of leaving every caller to pick one.
+
+**Rejected alternative:** keep characters and lower the price to an
+average seconds-per-character rate. Speech rate depends on voice, speed
+and language. A voice preview at speed 0.5 would be billed at half its
+cost.
+
+**Rejected alternative:** bill the measured MP3 duration. It is the
+fallback only. It is a fraction of a second shorter than what the
+platform reports (0.89 s against 1), so the ledger would undercount
+every call.
