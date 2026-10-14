@@ -163,6 +163,7 @@ unreadable table means the defaults plus one warning per distinct
 problem. `RateLimitRules.parse` is the one validation, used by the
 limiter on read and by account's PUT on write. `BAN_MAX_DAYS` and
 `RETENTION_DAYS` stay env only: they govern the purge, not the rule.
+`BAN_MAX_DAYS` later became a runtime rule as well; see 121ac29b-a32e-4f87-910b-2508efa7877f.
 
 **Reason:** an operator has to be able to tighten or loosen a threshold
 during an incident without a deploy. One row in the database is seen by
@@ -269,3 +270,39 @@ while the request could still have succeeded, are rare and short.
 **Rejected alternative:** fail open, allowing and logging a warning.
 Availability looks better on paper, but a banned client gets in for as
 long as the database is unwell.
+
+## The ban cap is a runtime rule too
+
+**Id:** 121ac29b-a32e-4f87-910b-2508efa7877f
+**Type:** decision
+**Status:** active
+**Evidence:** confirmed
+**Source:** the maintainer's request to edit the ban cap in the admin panel like the other rules, 2026-10-14, relayed by the coordinating agent
+**Revisit when:** the purge has to run on a schedule rather than at account's start
+
+`ban_max_days` joins the stored `ratelimit` row as a fifth field, with
+bounds 1 to 365. `BAN_MAX_DAYS` is its default. The limiter's
+`is_banned` cutoff uses the current rules' value, so a changed cap
+applies within thirty seconds. Account's start-up purge uses the same
+value. A row written before this change has no `ban_max_days`; `parse`
+takes it from the defaults instead of rejecting the row, so a stored
+four-field override keeps working. This revises the earlier choice in
+"The four thresholds are runtime settings" that the cap stays env only
+because it governs the purge. The cap also decides when the limiter
+stops refusing a ban, and that is the part an admin wants to change.
+`RETENTION_DAYS` stays env only: it only governs the purge.
+
+**Reason:** an admin who sees a ban in the panel should be able to
+shorten or lengthen how long bans hold without a deploy, the same as the
+thresholds that create them.
+
+**Rejected alternative:** the cap stays env only (the earlier design).
+Rejected by the maintainer: it was the only ban rule the panel could not
+change.
+
+**Rejected alternative:** reject a stored row without `ban_max_days`.
+Rejected: it would silently drop an admin's existing override, since an
+unusable row falls back to the env defaults.
+
+The upper bound of 365 days keeps the limit on how long a raw IP is kept
+(the "ban survives the purge for at most" entry) in place.
