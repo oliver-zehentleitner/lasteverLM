@@ -9,6 +9,10 @@ preserves why it changed, in `context/`.
 
 ## [Unreleased]
 
+### Changed
+
+- `Output` for outputs in the user's library: `notebook_id` is `UUID | None` (`None` once the origin notebook is deleted; the output survives it), new `origin_title: str = ""` (the origin notebook's title, kept), and `deleted_at` / `purge_at: datetime | None = None` (set while the output is in the trash). The owner is not in the model; it is always the caller. `SharedOutput` is unchanged.
+
 ### Fixed
 
 - `S3Storage.delete` reads the `Errors` list of `delete_objects`, which answers 200 even when single keys fail, and raises a `StorageError` naming the failed keys and their codes (at most ten, then a count) after every batch was sent. A refused delete (`AccessDenied` on one key) used to pass silently. A missing key (`NoSuchKey`) is still no error.

@@ -136,10 +136,19 @@ class Answer(BaseModel):
 
 class Output(_Row):
     """A generated document. `options` holds the resolved generation options
-    (language, voice, speed) as rag stores them; older outputs carry `{}`."""
+    (language, voice, speed) as rag stores them; older outputs carry `{}`.
+
+    Outputs belong to the user's library and survive their notebook:
+    `notebook_id` is `None` once the notebook is deleted, and
+    `origin_title` keeps the notebook's title from when the output was
+    made (`""` where none was recorded). `deleted_at` and `purge_at` are
+    set while the output is in the trash, `None` otherwise. The owner is
+    never part of the model: it is always the caller.
+    """
 
     id: UUID
-    notebook_id: UUID
+    notebook_id: UUID | None
+    origin_title: str = ""
     kind: OutputKind
     title: str
     content: dict[str, Any] | None = None
@@ -149,6 +158,8 @@ class Output(_Row):
     source_id: UUID | None = None
     options: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
+    deleted_at: datetime | None = None
+    purge_at: datetime | None = None
 
 
 class SharedOutput(BaseModel):

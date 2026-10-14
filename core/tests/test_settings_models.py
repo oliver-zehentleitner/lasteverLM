@@ -64,6 +64,34 @@ def test_output_options_default_to_empty() -> None:
     assert shared.options == {}
 
 
+def test_an_output_outlives_its_notebook_and_can_sit_in_the_trash() -> None:
+    row = {
+        "id": str(uuid4()),
+        "notebook_id": str(uuid4()),
+        "kind": "report",
+        "title": "t",
+        "status": "ready",
+        "created_at": "2026-10-14T00:00:00Z",
+    }
+    live = Output.model_validate(row)
+    assert (live.origin_title, live.deleted_at, live.purge_at) == ("", None, None)
+    orphan = Output.model_validate(
+        {
+            **row,
+            "notebook_id": None,
+            "origin_title": "Quartalsbericht",
+            "deleted_at": "2026-10-14T10:00:00Z",
+            "purge_at": "2026-10-28T10:00:00Z",
+        }
+    )
+    assert orphan.notebook_id is None and orphan.origin_title == "Quartalsbericht"
+    assert orphan.purge_at == datetime(2026, 10, 28, 10, tzinfo=UTC)
+    wire = orphan.model_dump(mode="json")
+    assert wire["notebook_id"] is None and wire["deleted_at"] == "2026-10-14T10:00:00Z"
+    assert "owner" not in wire and "user_id" not in wire  # always the caller
+    assert set(SharedOutput.model_fields) == {"kind", "title", "content", "options", "created_at"}
+
+
 def test_health_reports_the_build_from_the_env() -> None:
     env = {"APP_VERSION": "0.4.0", "APP_COMMIT": " 5e320ae "}
     assert Health.from_env(env).model_dump() == {
