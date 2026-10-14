@@ -366,10 +366,10 @@ ingress, never trusted from anywhere else):
    on everything until an admin lifts it, at most 90 days. Every request
    writes one `access_log` row (sampled to 1 in N for `/healthz`).
 
-The rule's four thresholds (requests per minute, block minutes, strikes
-to a ban, strike window) have their defaults in configuration
+The rule's five values (requests per minute, block minutes, strikes
+to a ban, strike window, ban cap) have their defaults in configuration
 (`RATE_LIMIT_PER_MINUTE` 120, `BLOCK_MINUTES` 15, `BAN_AFTER_STRIKES` 3,
-`STRIKE_WINDOW_HOURS`) and can be overridden at run time: the admin
+`STRIKE_WINDOW_HOURS`, `BAN_MAX_DAYS` 90) and can be overridden at run time: the admin
 panel writes them to the `settings` table (key `ratelimit`), and core's
 middleware in every service re-reads that row at most every 30 seconds
 (`core/context/ratelimit.md`). Blocks, bans, the access log and the
@@ -378,7 +378,7 @@ admin panel; bans can be lifted there.
 Raw IPs exist only in these tables and in `login_attempts`, for the security purpose.
 The access log, expired blocks and lifted bans are purged after
 `RETENTION_DAYS` (30); an active ban survives that purge and falls after
-`BAN_MAX_DAYS` (90) at the latest. The account service runs the purge at
+the ban cap (`BAN_MAX_DAYS`, 90, or the stored rule) at the latest. The account service runs the purge at
 every start with core's statements. The visitor log keeps hashes.
 
 ## Model prices

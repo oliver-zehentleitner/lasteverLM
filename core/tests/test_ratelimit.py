@@ -252,7 +252,8 @@ async def test_postgres_store_reads_tuple_and_dict_rows() -> None:
         ("BAN_AFTER_STRIKES", "-1", "between 1 and 100"),
         ("STRIKE_WINDOW_HOURS", "721", "between 1 and 720"),
         ("RETENTION_DAYS", "0", "at least 1"),
-        ("BAN_MAX_DAYS", "0", "at least 1"),
+        ("BAN_MAX_DAYS", "0", "between 1 and 365"),
+        ("BAN_MAX_DAYS", "366", "between 1 and 365"),
         ("ACCESS_LOG_HEALTHZ_SAMPLE", "0", "at least 1"),
     ],
 )
@@ -277,14 +278,21 @@ async def test_ban_expires_after_ban_max_days() -> None:
 
 # --- runtime rules ---------------------------------------------------------------
 
-RULES = {"per_minute": 1, "block_minutes": 5, "ban_after_strikes": 2, "strike_window_hours": 6}
+RULES = {
+    "per_minute": 1,
+    "block_minutes": 5,
+    "ban_after_strikes": 2,
+    "strike_window_hours": 6,
+    "ban_max_days": 7,
+}
+FOUR = {k: v for k, v in RULES.items() if k != "ban_max_days"}  # a row stored before the cap
 
 
 def test_rules_parse_and_bounds() -> None:
     rules = RateLimitRules.parse(RULES)
-    assert rules == RateLimitRules(1, 5, 2, 6) and rules.as_json() == RULES
+    assert rules == RateLimitRules(1, 5, 2, 6, 7) and rules.as_json() == RULES
     assert RateLimitRules.parse(json.dumps(RULES)) == rules
-    assert RateLimitRules.from_settings(SETTINGS) == RateLimitRules(3, 15, 3, 24)
+    assert RateLimitRules.from_settings(SETTINGS) == RateLimitRules(3, 15, 3, 24, 90)
     assert RATE_LIMIT_SETTINGS_KEY == "ratelimit"
     assert set(RATE_LIMIT_RULE_BOUNDS) == set(RULES)
     for name, (low, high) in RATE_LIMIT_RULE_BOUNDS.items():
@@ -296,10 +304,26 @@ def test_rules_parse_and_bounds() -> None:
         for bad_type in (True, 1.5, "3", None):
             with pytest.raises(ValueError, match=f"{name} must be an integer"):
                 RateLimitRules.parse({**RULES, name: bad_type})
-    with pytest.raises(ValueError, match="exactly the fields"):
+    with pytest.raises(ValueError, match="need the fields"):
         RateLimitRules.parse({k: v for k, v in RULES.items() if k != "per_minute"})
-    with pytest.raises(ValueError, match="exactly the fields"):
-        RateLimitRules.parse({**RULES, "ban_max_days": 1})
+    with pytest.raises(ValueError, match="need the fields"):
+        RateLimitRules.parse({**RULES, "retention_days": 1})
+
+
+def test_a_stored_four_field_row_takes_the_ban_cap_from_the_defaults() -> None:
+    assert RateLimitRules.parse(FOUR).ban_max_days == 90
+    defaults = RateLimitRules.from_settings(RateLimitSettings(ban_max_days=30))
+    assert RateLimitRules.parse(FOUR, defaults) == RateLimitRules(1, 5, 2, 6, 30)
+    assert RateLimitRules.parse(RULES, defaults).ban_max_days == 7
+
+
+async def test_the_stored_ban_cap_ends_a_ban() -> None:
+    store = MemoryRateLimitStore(overrides=RULES)
+    limiter = RateLimiter(store, SETTINGS)
+    await store.ban("10.0.0.9", "test", T0)
+    assert (await limiter.check("10.0.0.9", T0 + timedelta(days=7))).kind == "banned"
+    later = T0 + timedelta(days=7, seconds=RULES_TTL_SECONDS)
+    assert (await limiter.check("10.0.0.9", later)).kind == "allowed"
     with pytest.raises(ValueError, match="must be an object"):
         RateLimitRules.parse([1, 2, 3, 4])
 
@@ -310,10 +334,10 @@ async def test_stored_rules_override_env_and_refresh_after_ttl() -> None:
     await fill(store, "ip", 1, T0)
     decision = await limiter.check("ip", T0)
     assert decision.kind == "blocked" and decision.retry_after == 5 * 60  # stored values
-    assert limiter.rules == RateLimitRules(1, 5, 2, 6)
+    assert limiter.rules == RateLimitRules(1, 5, 2, 6, 7)
     store.overrides = None
     assert await limiter.current_rules(T0 + timedelta(seconds=RULES_TTL_SECONDS - 1)) == (
-        RateLimitRules(1, 5, 2, 6)  # cached within the TTL
+        RateLimitRules(1, 5, 2, 6, 7)  # cached within the TTL
     )
     later = T0 + timedelta(seconds=RULES_TTL_SECONDS)
     assert await limiter.current_rules(later) == RateLimitRules.from_settings(SETTINGS)

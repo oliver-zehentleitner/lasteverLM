@@ -221,25 +221,26 @@ key, and `lift_ban` takes it as the admin panel shows it.
 2. Strikes accumulate while each new one is within `STRIKE_WINDOW_HOURS`
    of the previous; after a quiet window the count restarts at one.
 3. The `BAN_AFTER_STRIKES`th strike bans: 403 on everything until the
-   admin panel calls `lift_ban(conn, ip)`, for at most `BAN_MAX_DAYS`
-   (90): an older ban no longer refuses anything, and the purge later
+   admin panel calls `lift_ban(conn, ip)`, for at most `ban_max_days`
+   (`BAN_MAX_DAYS`, 90): an older ban no longer refuses anything, and the purge later
    deletes it, lifted or not.
 
 ### Runtime rules
 
-The four thresholds of rules 1 to 3 can be changed from the admin panel
-without a deploy. The env values are the defaults; a row in account's
-`settings` table with key `ratelimit` (`RATE_LIMIT_SETTINGS_KEY`)
-overrides them:
+The four thresholds of rules 1 to 3 and the ban cap can be changed from
+the admin panel without a deploy. The env values are the defaults; a row
+in account's `settings` table with key `ratelimit`
+(`RATE_LIMIT_SETTINGS_KEY`) overrides them:
 
 ```json
-{"per_minute": 120, "block_minutes": 15, "ban_after_strikes": 3, "strike_window_hours": 24}
+{"per_minute": 120, "block_minutes": 15, "ban_after_strikes": 3, "strike_window_hours": 24, "ban_max_days": 90}
 ```
 
-All four fields, integers within `RATE_LIMIT_RULE_BOUNDS` (inclusive):
-`per_minute` 1–10000, `block_minutes` 1–1440, `ban_after_strikes`
-1–100, `strike_window_hours` 1–720. `RateLimitRules.parse(value)`
-validates (raising `ValueError` that names the field); account's PUT
+Integers within `RATE_LIMIT_RULE_BOUNDS` (inclusive): `per_minute`
+1–10000, `block_minutes` 1–1440, `ban_after_strikes` 1–100,
+`strike_window_hours` 1–720, `ban_max_days` 1–365. `ban_max_days` may be
+missing (a row stored before it was editable) and then comes from
+`defaults`. `RateLimitRules.parse(value, defaults)` validates (raising `ValueError` that names the field); account's PUT
 uses it, so the panel and the limiter accept exactly the same values.
 Every process re-reads the row through its store at most every
 `RULES_TTL_SECONDS` (30), so a change applies everywhere within half a

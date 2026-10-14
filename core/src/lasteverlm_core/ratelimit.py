@@ -11,12 +11,13 @@ share one view of a client:
 - `ip_blocks`: over the limit means 429 for `BLOCK_MINUTES` and one
   strike; strikes reset after `STRIKE_WINDOW_HOURS` of quiet.
 - `ip_bans`: the `BAN_AFTER_STRIKES`th strike within the window. 403 on
-  everything until an admin lifts the ban, for at most `BAN_MAX_DAYS`.
+  everything until an admin lifts the ban, for at most `ban_max_days`
+  (`BAN_MAX_DAYS`, editable at runtime like the other rules).
 
 The rules are in `RateLimiter`, pure over a `RateLimitStore`; the
 middleware only adapts ASGI to them. Raw IPs exist only here, for this
 purpose, and `purge` removes them after `RETENTION_DAYS` (an active ban
-after `BAN_MAX_DAYS`).
+after `ban_max_days`).
 """
 
 from __future__ import annotations
@@ -52,7 +53,7 @@ log = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class RateLimitSettings:
-    """The limiter's env settings. The four rule thresholds are the defaults
+    """The limiter's env settings. The five rule values are the defaults
     that a stored `ratelimit` row overrides (`RateLimitRules`)."""
 
     per_minute: int = 120
@@ -81,7 +82,7 @@ class RateLimitSettings:
             value = getattr(settings, name)
             if not low <= value <= high:
                 raise ConfigError(f"{_ENV_NAMES[name]} must be between {low} and {high}")
-        for name in ("healthz_sample", "retention_days", "ban_max_days"):
+        for name in ("healthz_sample", "retention_days"):
             if getattr(settings, name) < 1:
                 raise ConfigError(f"{_ENV_NAMES[name]} must be at least 1")
         return settings
@@ -99,12 +100,13 @@ _ENV_NAMES = {
 
 
 # --- runtime rules ---------------------------------------------------------------
-# The four thresholds of the rule can be changed at runtime from the admin
-# panel: one row in account's `settings` table, key `ratelimit`, a jsonb
-# object with exactly these four integer fields within these bounds
-# (inclusive). Account's PUT validates with `RateLimitRules.parse`; the
-# limiter re-reads the row at most every `RULES_TTL_SECONDS` per process.
-# BAN_MAX_DAYS and RETENTION_DAYS govern the purge and stay env only.
+# The five rule values can be changed at runtime from the admin panel: one
+# row in account's `settings` table, key `ratelimit`, a jsonb object with
+# these integer fields within these bounds (inclusive). `ban_max_days` may
+# be missing, as in a row stored before it became editable; it then comes
+# from the defaults. Account's PUT validates with `RateLimitRules.parse`;
+# the limiter re-reads the row at most every `RULES_TTL_SECONDS` per
+# process. RETENTION_DAYS governs the purge only and stays env only.
 
 RATE_LIMIT_SETTINGS_KEY = "ratelimit"
 RULES_TTL_SECONDS = 30
@@ -114,34 +116,44 @@ RATE_LIMIT_RULE_BOUNDS: Mapping[str, tuple[int, int]] = MappingProxyType(
         "block_minutes": (1, 1_440),
         "ban_after_strikes": (1, 100),
         "strike_window_hours": (1, 720),
+        "ban_max_days": (1, 365),
     }
 )
+_OPTIONAL_RULES = frozenset({"ban_max_days"})
 RULES_SQL = "select value from settings where key = %(key)s"
 
 
 @dataclass(frozen=True)
 class RateLimitRules:
-    """The four runtime-editable thresholds; field names are the jsonb keys."""
+    """The five runtime-editable rule values; field names are the jsonb keys."""
 
     per_minute: int
     block_minutes: int
     ban_after_strikes: int
     strike_window_hours: int
+    ban_max_days: int = RateLimitSettings.ban_max_days
 
     @classmethod
     def from_settings(cls, settings: RateLimitSettings) -> RateLimitRules:
         return cls(**{name: getattr(settings, name) for name in RATE_LIMIT_RULE_BOUNDS})
 
     @classmethod
-    def parse(cls, value: Any) -> RateLimitRules:
-        """Validate a stored or submitted object; `ValueError` names what is wrong."""
+    def parse(cls, value: Any, defaults: RateLimitRules | None = None) -> RateLimitRules:
+        """Validate a stored or submitted object; `ValueError` names what is wrong.
+
+        A missing `ban_max_days` comes from `defaults` (the env settings'
+        rules), else from `RateLimitSettings`' default."""
         if isinstance(value, str | bytes):
             value = json.loads(value)
         if not isinstance(value, Mapping):
             raise ValueError("rate-limit rules must be an object")
-        if set(value) != set(RATE_LIMIT_RULE_BOUNDS):
+        required = set(RATE_LIMIT_RULE_BOUNDS) - _OPTIONAL_RULES
+        if not required <= set(value) <= set(RATE_LIMIT_RULE_BOUNDS):
             expected = ", ".join(RATE_LIMIT_RULE_BOUNDS)
-            raise ValueError(f"rate-limit rules need exactly the fields {expected}")
+            optional = ", ".join(sorted(_OPTIONAL_RULES))
+            raise ValueError(f"rate-limit rules need the fields {expected} ({optional} optional)")
+        fallback = defaults or cls(1, 1, 1, 1)
+        value = {name: value.get(name, getattr(fallback, name)) for name in RATE_LIMIT_RULE_BOUNDS}
         for name, (low, high) in RATE_LIMIT_RULE_BOUNDS.items():
             field_value = value[name]
             if isinstance(field_value, bool) or not isinstance(field_value, int):
@@ -239,7 +251,9 @@ class RateLimiter:
         self._rules_read_at = now  # concurrent requests keep the old rules meanwhile
         try:
             raw = await self._store.rule_overrides()
-            self._rules = self._defaults if raw is None else RateLimitRules.parse(raw)
+            self._rules = (
+                self._defaults if raw is None else RateLimitRules.parse(raw, self._defaults)
+            )
             self._warned = None
         except Exception as exc:  # a malformed row or an unreadable table
             problem = f"{type(exc).__name__}: {exc}"
@@ -251,7 +265,7 @@ class RateLimiter:
 
     async def check(self, ip: str, now: datetime) -> Decision:
         s = await self.current_rules(now)
-        if await self._store.is_banned(ip, now - timedelta(days=self._settings.ban_max_days)):
+        if await self._store.is_banned(ip, now - timedelta(days=s.ban_max_days)):
             return BANNED
         until = await self._store.blocked_until(ip)
         if until is not None and until > now:
@@ -434,7 +448,7 @@ async def _send_json(send: Send, decision: Decision) -> None:
 
 # --- stores -----------------------------------------------------------------
 
-# A ban older than BAN_MAX_DAYS has expired even before the purge removes it.
+# A ban older than ban_max_days has expired even before the purge removes it.
 IS_BANNED_SQL = """
 select 1 as banned from ip_bans
 where ip = %(ip)s and lifted_at is null and created_at >= %(since)s

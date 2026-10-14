@@ -9,6 +9,10 @@ preserves why it changed, in `context/`.
 
 ## [Unreleased]
 
+### Changed
+
+- The ban cap is a runtime rule: `RateLimitRules` gains `ban_max_days` (bounds 1–365 in `RATE_LIMIT_RULE_BOUNDS`, default `BAN_MAX_DAYS`), and the limiter ends a ban after the current rules' value instead of the env setting. `RateLimitRules.parse(value, defaults=None)` accepts a row without `ban_max_days`, as stored before, and takes it from `defaults`. `BAN_MAX_DAYS` above 365 is now a `ConfigError` at startup.
+
 ## [0.17.0] - 2026-10-14
 
 ### Added
