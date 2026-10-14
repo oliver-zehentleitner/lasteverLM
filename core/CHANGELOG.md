@@ -9,6 +9,8 @@ preserves why it changed, in `context/`.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-14
+
 ### Added
 
 - `InferenceSettings.judge_models` (`JUDGE_MODELS`): JSON mapping a judge level (`JudgeLevel`, `JUDGE_LEVELS`: `low`, `medium`, `high`) to the model that checks an answer, merged over `DEFAULT_JUDGE_MODELS` (`glm-5.3-flash`, `deepseek-v4.1-flash`, `glm-5.3`) level by level by `parse_judge_models`. An unknown level, a blank model or malformed JSON is a `ConfigError` at startup. The service that runs the judge checks the prices with `require_prices`. A judge call is billed as usage kind `llm` under the judge model.

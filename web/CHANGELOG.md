@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-14
+
 ### Added
 
 - Output options from rag's catalogue: a report's style and length, a quiz's number of questions, difficulty and audience, and for every kind optional notes (`instructions`, up to 500 characters) with the hint that a shared output shows them; the line under a title names the new choices, and the share page and "How this was made" show the notes as "The author's instructions".

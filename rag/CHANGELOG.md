@@ -7,15 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-14
+
 ### Added
 
 - Output kind `chart` in two steps.
   - `POST /api/rag/notebooks/{id}/charts/propose` (`instructions`, `max` 1–12, default 6) returns candidate charts from one LLM call over numeric passages and stores nothing. The chart types are `bar`, `line`, `pie`, `stacked_bar` and `scatter`. When the sources hold no number series, the list is empty with a reason.
   - A `chart` output is created from the picked candidates (`options.charts`) without a second model call. Its cited chunks are loaded again from the notebook, and every value is checked strictly (`number-match-v1`): a value is `supported` only when the number is written in a cited passage, a computed value is `derived`, and anything else is `unsupported`.
   - Migration `0008_rag_chart_kind.sql`. The catalogue lists `chart`.
-
-### Added
-
 - Report options `report_style` (`briefing` default, `detailed`, `executive_summary`, `explainer`, `academic`) and `length` (`short`, `medium` default, `long`); quiz options `question_count` (5–30, default 10), `difficulty` (`easy`, `medium` default, `hard`) and `audience` (`children`, `teens`, `adults` default, `experts`). Defaults are stored on the output; the catalogue lists them under `report` and `quiz`. A quiz with fewer questions than asked gets the corrective retry, extra ones are cut.
 
 - `instructions` for every kind: the user's own notes (at most 500 characters, whitespace collapsed, blank dropped), given to the generator below the system rules; they steer focus and tone and never override the rules, the citation rules or the reply format. Stored in the options and the provenance log; the catalogue lists `instructions.max_chars`.

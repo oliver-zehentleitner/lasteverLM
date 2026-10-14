@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-14
+
 ### Changed
 
 - `MODEL_PRICES` in production and `compose.yaml` adds the judge candidates from the platform's catalog, cents per million input and output tokens: `glm-5.3-flash` 10 / 35, `deepseek-v4.1-flash` 15 / 60, `glm-5.3` 75 / 300.

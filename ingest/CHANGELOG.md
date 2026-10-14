@@ -9,6 +9,8 @@ preserves why it changed, in `context/`.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-14
+
 ### Added
 
 - Notebooks can be renamed (`PATCH /notebooks/{id}` `{"title"}`, trimmed, 1–200 characters as at creation) and shared read-only by a link: `POST /notebooks/{id}/share` gives `{"share_token"}` (made once, the same until `DELETE /notebooks/{id}/share` revokes it); migration 0011 adds `notebooks.share_token` with a unique index. Notebooks carry `share_token` (null when not shared). The public view is rag's; it shows sources by name and kind only.
