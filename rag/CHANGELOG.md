@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.2] - 2026-10-15
+
 ### Added
 
 - Verification level `bulletproof`: the high judge with revision and a second judge of another family (`SECOND_JUDGE_MODEL`, default `deepseek-v4.1-flash`, chosen by evaluation, `docs/second-judge-eval.md`) on every unit; supported only if both agree, removed if both fail, otherwise `disputed`, kept and marked. In outputs, chat answers (annotate only), the estimate's `levels` and the agent's question. An older `judge_default` of `high` now reads as bulletproof.
