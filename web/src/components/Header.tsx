@@ -5,14 +5,17 @@ import type { User } from '../api/types'
 import { t } from '../i18n'
 import { versionLine } from '../lib/build'
 import { formatCents } from '../lib/format'
+import { isPhone } from '../lib/layout'
 import { canSeeAdmin } from '../lib/roles'
 import { setSessionTheme, systemPrefersDark, toggledTheme, useTheme, useThemeVersion } from '../lib/theme'
 import { PopupMenu } from './PopupMenu'
 import { TOUR_CREDIT, tourEvents } from '../lib/tour'
 
+type Route = 'home' | 'library' | 'settings' | 'prices' | 'credits' | 'help' | 'admin'
+
 interface Props {
   me: User | null
-  route: 'home' | 'library' | 'settings' | 'prices' | 'credits' | 'help' | 'admin'
+  route: Route
   onNavigate: (path: string) => void
   onLogout: () => void
 }
@@ -51,8 +54,20 @@ function ThemeToggle() {
   )
 }
 
+/** A link of the top bar; on a phone it is in the profile menu instead. */
+interface NavLink {
+  path: string
+  route: Route
+  label: string
+}
+
 export function Header({ me, route, onNavigate, onLogout }: Props) {
   const build = useBuild()
+  const links: NavLink[] = [
+    { path: '/library', route: 'library', label: t('header.library') },
+    { path: '/prices', route: 'prices', label: t('header.prices') },
+    ...(canSeeAdmin(me) ? [{ path: '/admin', route: 'admin' as const, label: t('header.admin') }] : []),
+  ]
   return (
     <header className="topbar">
       <a
@@ -66,39 +81,20 @@ export function Header({ me, route, onNavigate, onLogout }: Props) {
       >
         lasteverLM
       </a>
-      <nav>
-        <a
-          href="/library"
-          className={route === 'library' ? 'active' : undefined}
-          onClick={(e) => {
-            e.preventDefault()
-            onNavigate('/library')
-          }}
-        >
-          {t('header.library')}
-        </a>
-        <a
-          href="/prices"
-          className={route === 'prices' ? 'active' : undefined}
-          onClick={(e) => {
-            e.preventDefault()
-            onNavigate('/prices')
-          }}
-        >
-          {t('header.prices')}
-        </a>
-        {canSeeAdmin(me) && (
+      <nav className="app-nav">
+        {links.map((l) => (
           <a
-            href="/admin"
-            className={route === 'admin' ? 'active' : undefined}
+            key={l.path}
+            href={l.path}
+            className={route === l.route ? 'active' : undefined}
             onClick={(e) => {
               e.preventDefault()
-              onNavigate('/admin')
+              onNavigate(l.path)
             }}
           >
-            {t('header.admin')}
+            {l.label}
           </a>
-        )}
+        ))}
       </nav>
       <div className="account">
         {me && (
@@ -116,7 +112,7 @@ export function Header({ me, route, onNavigate, onLogout }: Props) {
             </a>
           </>
         )}
-        <ProfileMenu email={me?.email ?? null} onNavigate={onNavigate} onLogout={onLogout} />
+        <ProfileMenu email={me?.email ?? null} links={links} onNavigate={onNavigate} onLogout={onLogout} />
         <a
           href="/help"
           className={route === 'help' ? 'icon help-link active' : 'icon help-link'}
@@ -137,9 +133,9 @@ export function Header({ me, route, onNavigate, onLogout }: Props) {
 }
 
 /** The account's round icon with the e-mail's first letter: its menu has
- *  the e-mail as a header, then Credits, Redeem voucher (the dialog at
- *  once), Settings and Sign out. */
-function ProfileMenu({ email, onNavigate, onLogout }: { email: string | null; onNavigate: (path: string) => void; onLogout: () => void }) {
+ *  the e-mail as a header, then on a phone the top bar's links, then
+ *  Credits, Redeem voucher (the dialog at once), Settings and Sign out. */
+function ProfileMenu({ email, links, onNavigate, onLogout }: { email: string | null; links: NavLink[]; onNavigate: (path: string) => void; onLogout: () => void }) {
   const [open, setOpen] = useState(false)
   // opened by the introduction's credit step: no focus taken, none given back
   const [forTour, setForTour] = useState(false)
@@ -184,6 +180,7 @@ function ProfileMenu({ email, onNavigate, onLogout }: { email: string | null; on
           onClose={close}
           focusFirst={!forTour}
           items={[
+            ...(isPhone() ? links.map((l) => ({ label: l.label, onSelect: () => onNavigate(l.path) })) : []),
             { label: t('header.credits'), onSelect: () => onNavigate('/credits') },
             { label: t('header.redeem'), id: 'redeem', onSelect: openVoucher },
             { label: t('header.settings'), onSelect: () => onNavigate('/settings') },

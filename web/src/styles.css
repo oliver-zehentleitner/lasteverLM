@@ -171,10 +171,11 @@ button.item { background: none; border: none; color: inherit; text-align: left; 
 .popup-menu ul { margin: 0; padding: 0; list-style: none; }
 .popup-menu button { display: block; width: 100%; text-align: left; background: none; border: none; color: var(--fg); padding: 0.4rem 0.6rem; border-radius: var(--radius); }
 .popup-menu button:not(:disabled):hover, .popup-menu button:focus-visible { background: var(--accent-soft); outline: none; }
-/* a phone: brand and account on the first line, the nav on its own line below */
+/* a phone: one line, brand and account; the nav's links are in the profile
+   menu (Header.tsx), a second line of links cost a row of height */
 @media (max-width: 640px) {
-  .topbar { flex-wrap: wrap; height: auto; gap: 0.4rem 0.75rem; }
-  .topbar nav { order: 3; flex: 1 0 100%; gap: 1.25rem; }
+  .topbar { gap: 0.75rem; }
+  .topbar .app-nav { display: none; }
   .account { margin-left: auto; gap: 0.5rem; }
 }
 

@@ -100,5 +100,17 @@ export function writeWidth(storage: Pick<Storage, 'setItem' | 'removeItem'> | un
 export const STACKED_QUERY = '(max-width: 900px)'
 
 export function isStacked(): boolean {
-  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(STACKED_QUERY).matches
+  return matches(STACKED_QUERY)
+}
+
+/** The phone width (the 640px breakpoint in styles.css): the header's
+ *  links leave the top bar for the profile menu, so the bar stays one line. */
+export const PHONE_QUERY = '(max-width: 640px)'
+
+export function isPhone(): boolean {
+  return matches(PHONE_QUERY)
+}
+
+function matches(query: string): boolean {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches
 }

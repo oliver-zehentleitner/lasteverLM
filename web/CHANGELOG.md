@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- On a phone (640px and narrower) the top bar is one line instead of two: Library, Prices and Admin are no longer a line of their own under brand and account but the first items of the profile menu, which saves one line of height. The public price page keeps its links.
+
 ## [0.22.21] - 2026-10-16
 
 ### Fixed
