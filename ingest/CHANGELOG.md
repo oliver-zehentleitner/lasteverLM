@@ -9,6 +9,8 @@ preserves why it changed, in `context/`.
 
 ## [Unreleased]
 
+## [0.22.23] - 2026-10-18
+
 ### Fixed
 
 - `POST /sources/estimate` refused `library_ids: []`, which rag sends when every selected source is read already and only a web page is to be fetched again; the plan then showed the raw validation error. Either list may be empty now, not both (#682, the empty-list part).
