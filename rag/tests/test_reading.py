@@ -2,7 +2,7 @@
 selected sources not read yet, web pages are checked again on request."""
 
 from lasteverlm_rag.models import SourceState
-from lasteverlm_rag.reading import Prepared, wait_until_read
+from lasteverlm_rag.reading import Prepared, could_not_read, wait_until_read
 
 from .conftest import (
     AUTH,
@@ -179,5 +179,38 @@ def test_ingest_refusing_to_read_is_a_502_and_nothing_is_created(settings):
 
     ingest.process = refuse
     r = client.post(OUTPUTS, json={"kind": "report"}, headers=AUTH)
-    assert (r.status_code, r.json()) == (502, {"error": f"ingest: unknown library ids: {unread}"})
+    assert (r.status_code, r.json()) == (
+        502,
+        {"error": "The source could not be processed. Check it and try again."},
+    )
     assert store.outputs == {}
+
+
+def test_a_source_read_error_is_not_exposed_to_the_user():
+    source = SourceState(
+        "source-id", "pdf", "failed", "library-id", "private.pdf", "internal validation details"
+    )
+
+    message = could_not_read(source)
+
+    assert (
+        message
+        == "Source 'private.pdf' could not be read. Check that it is readable and try again."
+    )
+    assert "internal validation details" not in message
+
+
+def test_an_unreadable_source_api_error_does_not_expose_stored_details(settings):
+    store, _, unread, _ = notebook()
+    store.sources[unread].update(
+        status="failed",
+        error="library_ids: List should have at least 1 item after validation, not 0",
+    )
+    client, ingest = client_for(settings, store)
+
+    response = client.post(OUTPUTS, json={"kind": "report"}, headers=AUTH)
+
+    assert response.status_code == 409
+    assert "could not be read" in response.json()["error"]
+    assert "library_ids" not in response.text
+    assert ingest.acted == []

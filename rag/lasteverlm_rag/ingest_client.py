@@ -18,6 +18,12 @@ class IngestError(Exception):
         super().__init__(message)
         self.status = status
 
+    @property
+    def public_message(self) -> str:
+        if self.status == 0 or self.status >= 500:
+            return "The source service is unavailable. Please try again."
+        return "The source could not be processed. Check it and try again."
+
 
 class Ingest(Protocol):
     def add_url(self, bearer: str, notebook_id: str, url: str) -> dict[str, Any]: ...
@@ -74,6 +80,8 @@ class HttpIngest:
         return result
 
     def add_library(self, bearer: str, notebook_id: str, library_ids: list[str]) -> dict[str, Any]:
+        if not library_ids:
+            return {"added": [], "already": []}
         result: dict[str, Any] = self._call(
             "POST",
             f"/notebooks/{notebook_id}/sources/bulk",
@@ -87,6 +95,8 @@ class HttpIngest:
         return list(result) if isinstance(result, list) else list(result.get("items", []))
 
     def process(self, bearer: str, library_ids: list[str]) -> dict[str, Any]:
+        if not library_ids:
+            return {"queued": [], "unchanged": []}
         result: dict[str, Any] = self._call(
             "POST", "/sources/process", bearer, json={"library_ids": library_ids}
         )

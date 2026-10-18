@@ -48,3 +48,16 @@ def test_a_refusal_or_an_outage_is_an_ingest_error():
     with pytest.raises(IngestError, match="not reachable") as caught:
         client(down).library("Bearer t")
     assert caught.value.status == 0
+
+
+def test_empty_library_and_process_calls_do_not_make_http_calls():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(500)
+
+    ingest = client(handler)
+    assert ingest.add_library("Bearer t", "nb", []) == {"added": [], "already": []}
+    assert ingest.process("Bearer t", []) == {"queued": [], "unchanged": []}
+    assert seen == []

@@ -582,7 +582,7 @@ class RagService:
         if still_reading:
             answer = f"{answer}\n\n{still_reading_note(still_reading)}"
         if unreadable:
-            answer = f"{answer}\n\n" + " ".join(could_not_read(s) + "." for s in unreadable)
+            answer = f"{answer}\n\n" + " ".join(could_not_read(s) for s in unreadable)
 
         # Both messages are written only once the answer exists, so the history
         # never holds a question without its answer.

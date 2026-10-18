@@ -22,7 +22,7 @@ from .test_judging import judges, report, revision
 OUTPUTS = f"/api/rag/notebooks/{NOTEBOOK}/outputs"
 PRICES_PAGE = "https://lasteverlm.zehentleitner.co/prices"
 NO_TEXT = "the page has no text without a browser"
-REFUSAL = f"Source '{PRICES_PAGE}' could not be read: {NO_TEXT}"
+REFUSAL = f"Source '{PRICES_PAGE}' could not be read. Check that it is readable and try again."
 
 
 def oliver():
@@ -98,7 +98,7 @@ def test_an_answer_names_a_selected_source_that_could_not_be_read(settings):
     client, _ = client_for(settings, store, "The sky is blue [1].")
     body = {"question": "?", "conversation_id": CONVERSATION, "source_ids": [pdf, page]}
     answer = client.post(f"/api/rag/notebooks/{NOTEBOOK}/ask", json=body, headers=AUTH).json()
-    assert answer["answer"].endswith(REFUSAL + ".")
+    assert answer["answer"].endswith(REFUSAL)
 
 
 def test_a_long_judged_run_refreshes_its_claim(settings):

@@ -12,12 +12,15 @@ from lasteverlm_rag.agent_service import TIMEOUT_ERROR
 
 from .conftest import (
     AUTH,
+    BASE_ENV,
     CONVERSATION,
     NOTEBOOK,
     FakeIngest,
     FakeLLM,
+    FakeObjects,
     FakeRetriever,
     FakeStore,
+    FakeTTS,
     chunk,
     make_client,
 )
@@ -214,9 +217,94 @@ def test_a_step_that_fails_does_not_stop_the_others(settings):
     first, second = done["steps"]
     assert (first["state"], first["error"]) == (
         "failed",
-        "ingest: url: credentials are not allowed",
+        "The source could not be processed. Check it and try again.",
     )
     assert second["state"] == "done" and second["result"]["sources"][0]["name"] == "sky.pdf"
+
+
+def test_a_german_interview_audio_request_falls_back_to_a_priced_plan():
+    from lasteverlm_rag.config import Settings
+
+    prices = json.loads(BASE_ENV["MODEL_PRICES"])
+    prices["test-tts"] = {"in": 1, "out": 0}
+    audio_settings = Settings.from_env(
+        {
+            **BASE_ENV,
+            "DEMO_TOKEN": "demo-secret",
+            "MODEL_PRICES": json.dumps(prices),
+            "TTS_MODEL": "test-tts",
+            "S3_ENDPOINT": "https://objects.example",
+            "S3_BUCKET": "audio",
+            "S3_ACCESS_KEY": "key",
+            "S3_SECRET_KEY": "secret",
+        }
+    )
+    store = FakeStore()
+    store.add_source(NOTEBOOK, "sky.pdf", summary="About the sky.")
+    ingest = FakeIngest()
+    client = make_client(
+        audio_settings,
+        store,
+        FakeRetriever([SKY]),
+        ToolLLM([[]]),
+        tts=FakeTTS(),
+        objects=FakeObjects(),
+        ingest=ingest,
+    )
+    body = ask(client, "erzeugen ein Interview audio auf deutsch bitte")
+
+    assert body["plan"]["status"] == "proposed"
+    [step] = body["plan"]["steps"]
+    assert step["tool"] == "create_output" and step["args"]["kind"] == "audio"
+    assert step["args"]["options"]["audio_style"] == "conversation"
+    assert step["args"]["options"]["language"] == "de"
+    assert body["plan"]["estimate"]["max"] > 0
+    assert "Nothing runs until you confirm it." in body["answer"]
+    assert ingest.acted == []
+
+
+def test_an_audio_request_without_readable_sources_asks_before_planning(settings):
+    for unreadable in (False, True):
+        store, _, ingest, client = setup(settings, [[]])
+        store.sources.clear()
+        if unreadable:
+            source_id = store.add_source(NOTEBOOK, "broken.pdf", status="failed")
+            store.sources[source_id]["error"] = "library_ids: List should have at least 1 item"
+
+        body = ask(client, "erzeugen ein Interview audio auf deutsch bitte")
+
+        assert body["plan"] is None
+        if unreadable:
+            assert "Select another source first" in body["answer"]
+        else:
+            assert "Select at least one source first" in body["answer"]
+        assert "library_ids" not in body["answer"]
+        assert store.plans == {} and store.outputs == {} and ingest.acted == []
+
+
+def test_ingest_validation_errors_are_readable_in_api_responses(settings, monkeypatch):
+    from lasteverlm_rag.ingest_client import IngestError
+
+    store, _, ingest, client = setup(settings, [[]], "The sky is blue [1].")
+    store.add_source(NOTEBOOK, "unread.pdf", status="added")
+
+    def refuse(bearer, library_ids):
+        raise IngestError(
+            422, "library_ids: List should have at least 1 item after validation, not 0"
+        )
+
+    monkeypatch.setattr(ingest, "process", refuse)
+    response = client.post(
+        ASK,
+        json={"question": "What is in the sources?", "conversation_id": CONVERSATION},
+        headers=AUTH,
+    )
+
+    assert response.status_code == 502
+    assert response.json() == {
+        "error": "The source could not be processed. Check it and try again."
+    }
+    assert "library_ids" not in response.text
 
 
 def test_an_output_still_waiting_for_a_source_fails_after_the_timeout_uncharged(settings):

@@ -808,7 +808,7 @@ def _install_error_handlers(app: FastAPI) -> None:
     async def ingest_failed(_: Request, exc: IngestError) -> JSONResponse:
         # reading or refreshing sources before an output or answer: ingest refused or is down
         log.warning("ingest call failed (%s): %s", exc.status, exc)
-        return error(502, f"ingest: {exc}" if exc.status else str(exc))
+        return error(502, exc.public_message)
 
     @app.exception_handler(PlanNotFound)
     async def plan_not_found(_: Request, exc: PlanNotFound) -> JSONResponse:

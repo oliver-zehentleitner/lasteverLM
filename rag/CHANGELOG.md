@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Clear German audio requests that the planner misses now produce a priced interview plan; a missing or unreadable source gets a readable prompt before planning, and internal ingest validation details stay out of user-facing errors.
+
 ## [0.22.22] - 2026-10-16
 
 ### Fixed

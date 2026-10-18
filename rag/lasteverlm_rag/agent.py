@@ -64,6 +64,32 @@ PLANNED_KINDS = [
     "decision",
 ]
 
+
+def requested_audio_options(message: str) -> dict[str, str] | None:
+    """Recognize clear audio creation requests when the planner misses them."""
+    text = " ".join(message.casefold().split())
+    action = (
+        r"\b(?:creat\w*|mak\w*|generat\w*|produc\w*|erzeug\w*|erstell\w*|mach\w*|produzier\w*)\b"
+    )
+    if not re.search(action, text):
+        return None
+    if not re.search(r"\b(?:audio|podcast|audiobook|hörbuch|hörspiel)\b", text):
+        return None
+    if re.match(r"^(?:how|what|why|when|where|wie|was|warum|wann|wo)\b", text):
+        return None
+    options: dict[str, str] = {}
+    if re.search(r"\binterview\b", text):
+        options["audio_style"] = "conversation"
+    language_request = (
+        r"\b(?:auf\s+(?:der\s+)?deutsch\w*|"
+        r"in\s+(?:der\s+)?(?:deutsch|german)\w*|"
+        r"(?:deutsch|german)\s+language)\b"
+    )
+    if re.search(language_request, text):
+        options["language"] = "de"
+    return options
+
+
 PLANNER_SYSTEM = f"""You plan actions on the user's notebook.
 
 You see the user's message, their earlier questions and the names of the notebook's documents

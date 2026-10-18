@@ -66,8 +66,8 @@ def failed_sources(
 
 
 def could_not_read(source: SourceState) -> str:
-    """The message an output fails or is refused with, naming the source."""
-    return f"Source '{source.name}' could not be read: {source.error or 'reading failed'}"
+    """A user-facing failure that does not expose ingest's internal error."""
+    return f"Source '{source.name}' could not be read. Check that it is readable and try again."
 
 
 def check_refresh(uploads: Sequence[SourceState], url_refresh: Sequence[str]) -> list[SourceState]:

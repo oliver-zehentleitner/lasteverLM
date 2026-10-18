@@ -36,6 +36,7 @@ from .agent import (
     output_label,
     pages_question,
     public_question,
+    requested_audio_options,
     separate,
     sources_in,
     sources_question,
@@ -284,13 +285,19 @@ class AgentService:
                 PLANNER_MAX_TOKENS,
             ),
         )
-        if not result.tool_calls or result.text.strip() == NO_ACTION:
-            return None
-        calls = [(c.name, copy.deepcopy(c.arguments)) for c in result.tool_calls]
+        calls = (
+            [(c.name, copy.deepcopy(c.arguments)) for c in result.tool_calls]
+            if result.tool_calls and result.text.strip() != NO_ACTION
+            else []
+        )
         if not any(name in ACTION_TOOLS for name, _ in calls):
             # reading or explaining alone is what an answer does: a question that
-            # the planner met with read tools only is answered, never turned into a plan
-            return None
+            # the planner met with read tools only is answered, unless a clear
+            # creation request needs the deterministic audio fallback.
+            options = requested_audio_options(question)
+            if options is None:
+                return None
+            calls = [("create_output", {"kind": "audio", "options": options})]
         return self._propose(
             user_id,
             notebook_id,
@@ -368,6 +375,19 @@ class AgentService:
         )
         # a plan that adds a source makes its documents from all, the new one included
         adds = any(s.valid and s.tool in ("add_url", "add_from_library") for s in steps)
+        if any(s.valid and s.tool == "create_output" for s in steps) and not adds and not selected:
+            all_uploads = selected_uploads(self._store, notebook_id, selection)
+            unreadable = any(s.status == "failed" for s in all_uploads)
+            text = (
+                "None of the selected sources can be read. Select another source first."
+                if unreadable
+                else "Select at least one source first, or add a source to this notebook."
+            )
+            self._store.insert_message(notebook_id, conversation_id, "user", question, None)
+            message = self._store.insert_message(
+                notebook_id, conversation_id, "assistant", text, []
+            )
+            return Answer(message_id=message.id, answer=text)
         for step in steps:
             if step.valid and step.tool == "create_output" and selection and not adds:
                 step.args.setdefault("source_ids", list(selection))
@@ -925,7 +945,7 @@ def _aware(value: Any) -> datetime:
 
 def _public_error(exc: Exception) -> str:
     if isinstance(exc, IngestError):
-        return f"ingest: {exc}" if exc.status else str(exc)
+        return exc.public_message
     from .service import public_error
 
     return public_error(exc)
